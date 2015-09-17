@@ -1,0 +1,27 @@
+################################################
+#                                              #
+# This is the basic configuraion for the NIO   #
+# AsyncClient                                  #
+# All property keyword must be written in      #
+# UPPER CASE. This config file MUST be set in  #
+# the PATH or, at least, in the same directory #
+# of NIOAsyncClient                            #
+#                                              #
+################################################
+# NIO AsyncServer Port and HostName
+PORT = 14000
+HOST = localhost
+#-----------------------------------------------
+# Size of DirectBuffer
+SIZE = 4096
+#-----------------------------------------------
+# Sleeping Time (milliSeconds)
+SLEEP = 2048
+#-----------------------------------------------
+# print StackException: ON or anything for OFF
+PRINT = ON
+#-----------------------------------------------
+#-----------------------------------------------
+# PATH
+# PATH = ./io/cluster/net
+#-----------------------------------------------

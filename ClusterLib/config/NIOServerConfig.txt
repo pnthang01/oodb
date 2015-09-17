@@ -1,0 +1,19 @@
+################################################
+#                                              #
+# This is the basic configuraion for the NIO   #
+# AsyncServer                                  #
+# All property keyword must be written in      #
+# UPPER CASE. This config file MUST be set in  #
+# the PATH or, at least, in the same directory #
+# of NIOAsyncServer                            #
+#                                              #
+################################################
+# NIO AsyncServer Port
+PORT = 14000
+#-----------------------------------------------
+# Size of DirectBuffer
+SIZE = 4096
+#-----------------------------------------------
+# PATH
+# PATH = ./io/cluster/net
+#-----------------------------------------------

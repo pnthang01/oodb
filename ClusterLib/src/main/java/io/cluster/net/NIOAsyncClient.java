@@ -5,13 +5,19 @@
  */
 package io.cluster.net;
 
+import java.io.FileInputStream;
+import java.util.Properties;
 import io.cluster.listener.MessageListener;
+import io.cluster.net.bean.RequestBean;
 import io.cluster.net.bean.ResponseBean;
+import java.io.File;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -19,15 +25,22 @@ import java.util.List;
  */
 public class NIOAsyncClient extends Thread {
 
-    private List<MessageListener> listeners;
+    private Map<String, List<MessageListener>> channelListeners;
     AsynchronousSocketChannel soc;
-    int pid = -1;
+    int SIZE, SLEEP, pid = -1;
 
-    public NIOAsyncClient() {
+    public NIOAsyncClient(File configFile) {
+        Properties prop = new Properties();
+        channelListeners = new HashMap<>();
         try {
-            listeners = new ArrayList();
+
+            prop.load(new FileInputStream(configFile));
+            SLEEP = Integer.parseInt(prop.getProperty("SLEEP"));
+            SIZE = Integer.parseInt(prop.getProperty("SIZE"));
+
             soc = AsynchronousSocketChannel.open();
-            soc.connect(new InetSocketAddress("localhost", 14000)).get();
+            soc.connect(new InetSocketAddress(prop.getProperty("HOST"),
+                    Integer.parseInt(prop.getProperty("PORT")))).get();
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -36,7 +49,8 @@ public class NIOAsyncClient extends Thread {
     public void run() {
         try {
             pid = 1;
-            Ping ping = new Ping(soc); ping.start();
+            Ping ping = new Ping(soc);
+            ping.start();
             readResponse();
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -50,12 +64,20 @@ public class NIOAsyncClient extends Thread {
         }
     }
 
-    public void addListener(MessageListener listener) {
-        this.listeners.add(listener);
+    public void addListener(String channel, MessageListener listener) {
+        List<MessageListener> listeners = channelListeners.get(channel);
+        if (null == listeners) {
+            listeners = new ArrayList<MessageListener>();
+            channelListeners.put(channel, listeners);
+        }
+        listeners.add(listener);
     }
 
-    public void sendRequest(String request) {
-        soc.write(ByteBuffer.wrap(request.getBytes()));
+    public void sendRequest(String channel, String request) {
+        byte[] finalBytes = new byte[32 + SIZE];
+        System.arraycopy(channel.getBytes(), 0, finalBytes, 0, channel.length());
+        System.arraycopy(request.getBytes(), 0, finalBytes, 32, request.length());
+        soc.write(ByteBuffer.wrap(finalBytes));
     }
 
     public void close() {
@@ -63,23 +85,30 @@ public class NIOAsyncClient extends Thread {
             soc.shutdownInput();
             soc.shutdownOutput();
             soc.close();
-        } catch(Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
     private void readResponse() {
-        ByteBuffer bbuf = ByteBuffer.allocateDirect(2048);
+        ByteBuffer bbuf = ByteBuffer.allocateDirect(SIZE);
         int le = -1;
-        byte[] bb = new byte[2048];
+        byte[] bb = new byte[32 + SIZE];
         while (true) {
             try {
                 le = soc.read(bbuf).get();
                 if (le != -1) {
                     bbuf.flip();
                     bbuf.get(bb, 0, le);
-                    for (MessageListener listener : listeners) {
-                        listener.onMessage(new ResponseBean(bb));
+                    String channel = new String(bb, 0, 32).trim();
+                    //
+                    List<MessageListener> listeners = channelListeners.get(channel);
+                    if (null != listeners) {
+                        byte[] message = new byte[le - 32];
+                        System.arraycopy(bb, 32, message, 0, message.length);
+                        for (MessageListener listener : listeners) {
+                            listener.onMessage(new ResponseBean(message));
+                        }
                     }
                 }
             } catch (Exception ex) {
@@ -102,7 +131,7 @@ public class NIOAsyncClient extends Thread {
         public void run() {
             while (true) {
                 try {
-                    Thread.sleep(3000);
+                    Thread.sleep(SLEEP);
                     soc.write(ByteBuffer.wrap(ping));
                 } catch (InterruptedException ex) {
                 }

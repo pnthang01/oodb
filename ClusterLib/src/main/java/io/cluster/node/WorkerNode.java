@@ -6,34 +6,47 @@
 package io.cluster.node;
 
 import io.cluster.listener.ClientMessageListener;
+import io.cluster.listener.MessageListener;
 import io.cluster.net.NIOAsyncClient;
+import java.io.File;
 
 /**
  *
  * @author thangpham
  */
 public class WorkerNode {
-    
+
     private NIOAsyncClient client;
     private static WorkerNode _instance;
-    
-    private WorkerNode(){
-        client = new NIOAsyncClient();
+
+    public WorkerNode(File configFile) {
+        if (!configFile.exists() || !configFile.isFile()) {
+            System.err.println("Couldn't find default config file.");
+            System.exit(0);
+        }
+        client = new NIOAsyncClient(configFile);
         client.start();
         //
         ClientMessageListener listener = new ClientMessageListener();
-        client.addListener(listener);
+        client.addListener("system", listener);
         //
     }
-    
-    public static void initialize() {
-        _instance = new WorkerNode();
+
+    public static void initialize(String configFileDes) {
+        File defaultConfig = new File(configFileDes);
+        _instance = new WorkerNode(defaultConfig);
+    }
+
+    public static void addListener(String channel, MessageListener listener) {
+        if(null == channel) throw new NullPointerException("Channel cannot be null.");
+        if(null == listener) throw new NullPointerException("Listener cannot be null.");
+        _instance.client.addListener(channel, listener);
     }
     
-    public static void sendRequest(String request) {
-        _instance.client.sendRequest(request);
+    public static void sendRequest(String channel, String request) {
+        _instance.client.sendRequest(channel, request);
     }
-    
+
     public static void closeConnectionToServer() {
         _instance.client.close();
     }

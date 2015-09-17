@@ -5,9 +5,12 @@
  */
 package demo;
 
-import io.cluster.listener.ServerMessageListener;
-import io.cluster.net.NIOAsyncServer;
+import io.cluster.listener.MessageListener;
+import io.cluster.net.bean.NetBean;
+import io.cluster.net.bean.RequestBean;
+import io.cluster.node.MasterNode;
 import io.cluster.node.NodeManager;
+import java.io.File;
 import java.util.Scanner;
 
 /**
@@ -17,11 +20,14 @@ import java.util.Scanner;
 public class TestServer {
 
     public static void main(String[] args) {
-        NIOAsyncServer server = new NIOAsyncServer();
-        server.start();
-        //
-        ServerMessageListener listener = new ServerMessageListener();
-        server.addListener(listener);
+        MasterNode master = null;
+        if (args.length > 0) {
+            File file = new File(args[0]);
+            master = new MasterNode(file);
+        } else {
+            master = new MasterNode();
+        }
+        NodeManager.addListener("testchannel", new TestChannel());
         //
         int choice = 0;
         Scanner sc = new Scanner(System.in);
@@ -31,17 +37,35 @@ public class TestServer {
             System.out.println("3. Monitor clients");
             choice = sc.nextInt();
             if (choice == 1) {
-                server.sendMessage("Send message");
+                NodeManager.sendMessageToAllClient("testchannel", "Send message");
             }
             if (choice == 2) {
                 System.out.println(NodeManager.checkNodeStatuses());
                 int node = -1;
                 node = sc.nextInt();
-                NodeManager.getNodeByIndex(node);
+                String id = NodeManager.getNodeByIndex(node).getId();
+                NodeManager.sendMessageToSingleClient(id, "testchannel", "Send message");
             }
             if (choice == 3) {
                 System.out.println(NodeManager.checkNodeStatuses());
             }
         } while (choice != 0);
+    }
+
+    public static class TestChannel implements MessageListener {
+
+        @Override
+        public String onChannel(NetBean bean) {
+            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        }
+
+        @Override
+        public String onMessage(NetBean bean) {
+            RequestBean requestBean = (RequestBean) bean;
+            String message = requestBean.getMessageAsString();
+            System.out.println("Receive message: " + message);
+            return null;
+        }
+
     }
 }

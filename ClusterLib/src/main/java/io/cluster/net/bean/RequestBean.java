@@ -19,7 +19,7 @@ public class RequestBean extends NetBean {
     private String host;
     private int port = -1;
 
-    public RequestBean(SocketAddress address, byte[] message) {
+    public RequestBean(SocketAddress address, byte... message) {
         this.address = address;
         this.message = message;
         this.loggedtime = System.currentTimeMillis();
@@ -27,7 +27,7 @@ public class RequestBean extends NetBean {
 
     @Override
     public String getMessageAsString() {
-        return new String(message, 0, message.length);
+        return new String(message, 0, message.length).trim();
     }
 
     public String getHost() {

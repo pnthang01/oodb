@@ -5,16 +5,20 @@
  */
 package io.cluster.net;
 
+import java.io.FileInputStream;
+import java.util.Properties;
 import io.cluster.listener.MessageListener;
-import io.cluster.listener.ServerMessageListener;
 import io.cluster.net.bean.RequestBean;
+import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -23,36 +27,47 @@ import java.util.List;
 public class NIOAsyncServer extends Thread {
 
     private AsynchronousServerSocketChannel asynSvr;
-    private List<MessageListener> listeners;
+    private final Map<String, List<MessageListener>> channelListeners;
     private List<AsyncSocketBean> beanList;
+    private int SIZE;
 
-    public NIOAsyncServer() {
+    public NIOAsyncServer(File configFile) {
+        System.out.println("The server is about to start...");
+        channelListeners = new HashMap<>();
+        Properties prop = new Properties();
+        beanList = new ArrayList<AsyncSocketBean>();
         try {
-            listeners = new ArrayList();
-            beanList = new ArrayList<>();
+            prop.load(new FileInputStream(configFile));
+            SIZE = Integer.parseInt(prop.getProperty("SIZE"));
             asynSvr = AsynchronousServerSocketChannel.open();
-            asynSvr.bind(new InetSocketAddress(14000));
+            asynSvr.bind(new InetSocketAddress(Integer.parseInt(prop.getProperty("PORT"))));
         } catch (IOException ex) {
             ex.printStackTrace();
         }
+        System.out.println("The server started successfully.");
     }
 
-    public void addListener(MessageListener listener) {
-        this.listeners.add(listener);
+    public void addListener(String channel, MessageListener listener) {
+        List<MessageListener> listeners = channelListeners.get(channel);
+        if (null == listeners) {
+            listeners = new ArrayList<MessageListener>();
+            channelListeners.put(channel, listeners);
+        }
+        listeners.add(listener);
     }
 
-    public void sendMessage(String id, String message) {
-        for(AsyncSocketBean bean : beanList) {
-            if(bean.getClientId().equals(id)) {
-                bean.sendResponse(message);
+    public void sendMessageToSingleBean(String id, String channel, String message) {
+        for (AsyncSocketBean bean : beanList) {
+            if (bean.getClientId().equals(id)) {
+                bean.sendResponse(channel, message);
                 break;
             }
         }
     }
-    
-    public void sendMessage(String message) {
+
+    public void sendMessageToAllBean(String channel, String message) {
         for (AsyncSocketBean bean : beanList) {
-            bean.sendResponse(message);
+            bean.sendResponse(channel, message);
         }
     }
 
@@ -61,7 +76,7 @@ public class NIOAsyncServer extends Thread {
         try {
 
             while (true) {
-                AsyncSocketBean bean = new AsyncSocketBean(asynSvr.accept().get(), listeners);
+                AsyncSocketBean bean = new AsyncSocketBean(asynSvr.accept().get(), channelListeners);
                 beanList.add(bean);
                 bean.start();
             }
@@ -74,16 +89,15 @@ public class NIOAsyncServer extends Thread {
 
         private String clientId;
         private final AsynchronousSocketChannel soc;
-        private final List<MessageListener> listeners;
+        private final Map<String, List<MessageListener>> channelListeners;
 
-        public AsyncSocketBean(AsynchronousSocketChannel soc, List<MessageListener> listeners) throws IOException {
+        public AsyncSocketBean(AsynchronousSocketChannel soc, Map<String, List<MessageListener>> channelListeners) throws IOException {
             this.soc = soc;
-            this.listeners = listeners;
-            for (MessageListener listener : listeners) {
+            this.channelListeners = channelListeners;
+            List<MessageListener> listenners = channelListeners.get("system");
+            for (MessageListener listener : listenners) {
                 String result = listener.onChannel(new RequestBean(soc.getRemoteAddress(), null));
-                if (listener instanceof ServerMessageListener) {
-                    this.clientId = result;
-                }
+                this.clientId = result;
             }
         }
 
@@ -99,28 +113,57 @@ public class NIOAsyncServer extends Thread {
         public void run() {
             try {
                 readRequest();
-                soc.close();
             } catch (Exception e) {
                 e.printStackTrace();
+            } finally {
+                try {
+                    soc.shutdownInput();
+                    soc.shutdownOutput();
+                    soc.close();
+                } catch (IOException ex) {
+                }
             }
         }
 
-        public void sendResponse(String response) {
-            soc.write(ByteBuffer.wrap(response.getBytes()));
+        /**
+         * Send a message to client by channel
+         *
+         * @param channel
+         * @param response
+         */
+        public void sendResponse(String channel, String response) {
+            byte[] finalBytes = new byte[32 + SIZE];
+            System.arraycopy(channel.getBytes(), 0, finalBytes, 0, channel.length());
+            System.arraycopy(response.getBytes(), 0, finalBytes, 32, response.length());
+            soc.write(ByteBuffer.wrap(finalBytes));
         }
 
         private void readRequest() {
-            ByteBuffer bbuf = ByteBuffer.allocateDirect(4096);
+            ByteBuffer bbuf = ByteBuffer.allocateDirect(SIZE);
             int le = -1;
-            byte[] bb = new byte[4096];
+            byte[] bb = new byte[32 + SIZE];
             while (true) {
                 try {
                     le = soc.read(bbuf).get();
                     if (le != -1) {
-                        bbuf.flip();
-                        bbuf.get(bb, 0, le);
-                        for (MessageListener listener : listeners) {
-                            listener.onMessage(new RequestBean(soc.getRemoteAddress(), bb));
+                        if (le == 1) {
+                            List<MessageListener> listeners = channelListeners.get("system");
+                            for (MessageListener listener : listeners) {
+                                listener.onMessage(new RequestBean(soc.getRemoteAddress(), bbuf.get()));
+                            }
+                        } else {
+                            bbuf.flip();
+                            bbuf.get(bb, 0, le);
+                            String channel = new String(bb, 0, 32).trim();
+                            //
+                            List<MessageListener> listeners = channelListeners.get(channel);
+                            if (null != listeners) {
+                                byte[] message = new byte[le - 32];
+                                System.arraycopy(bb, 32, message, 0, message.length);
+                                for (MessageListener listener : listeners) {
+                                    listener.onMessage(new RequestBean(soc.getRemoteAddress(), message));
+                                }
+                            }
                         }
                     }
                 } catch (Exception ex) {

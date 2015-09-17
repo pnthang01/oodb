@@ -30,11 +30,11 @@ public class ServerMessageListener implements MessageListener {
     @Override
     public String onMessage(NetBean request) {
         if (request == null || !(request instanceof RequestBean)) {
-            System.err.println("The request is in wrong format or be null on message, cannot process.");
+            System.err.println("Request Format is wrong or a null, cannot process.");
         }
         RequestBean requestBean = (RequestBean) request;
         if (requestBean.getMessage() != null && requestBean.getMessage().length <= 0) {
-            System.err.println("Request from client is empty or null, cannot process.");
+            System.err.println("Client Request is empty or a null, cannot process.");
             return null;
         }
         interceptor.addRequest(requestBean);
@@ -44,7 +44,7 @@ public class ServerMessageListener implements MessageListener {
     @Override
     public String onChannel(NetBean request) {
         if (request == null || !(request instanceof RequestBean)) {
-            System.err.println("Request from client is empty or null on channel, cannot process.");
+            System.err.println("Client Request is empty or a null on channel, cannot process.");
             return null;
         }
         RequestBean requestBean = (RequestBean) request;
@@ -66,7 +66,7 @@ public class ServerMessageListener implements MessageListener {
         public ServerMessageInterceptor() {
             lock = new ReentrantLock();
             newElement = lock.newCondition();
-            requestQueue = new ConcurrentLinkedQueue();
+            requestQueue = new ConcurrentLinkedQueue<RequestBean>();
         }
 
         public void run() {
@@ -85,7 +85,6 @@ public class ServerMessageListener implements MessageListener {
                     //
                     //////////////CAST message to task to do
                     //
-                    System.out.println("Interceptor process request: " + request.getHost());
                     //**************************
                 } catch (Exception e) {
                     e.printStackTrace();

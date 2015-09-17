@@ -21,7 +21,7 @@ public class ResponseBean extends NetBean {
     
     @Override
     public String getMessageAsString() {
-        return new String(message, 0 , message.length);
+        return new String(message, 0 , message.length).trim();
     }
 
     public byte[] getMessage() {
