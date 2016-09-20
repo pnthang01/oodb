@@ -5,103 +5,43 @@
  */
 package io.cluster.listener;
 
-import io.cluster.node.bean.NodeBean;
-import io.cluster.net.bean.NetBean;
-import io.cluster.net.bean.RequestBean;
+import io.cluster.listener.model.MessageModel;
+import io.cluster.net.bean.RequestNetBean;
 import io.cluster.node.NodeManager;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import io.cluster.util.Constants.Action;
+import io.cluster.util.StringUtil;
 
 /**
  *
  * @author thangpham
  */
-public class ServerMessageListener implements MessageListener {
-
-    private ServerMessageInterceptor interceptor;
-
-    public ServerMessageListener() {
-        interceptor = new ServerMessageInterceptor();
-        interceptor.start();
-    }
+public class ServerMessageListener extends IMessageListener<RequestNetBean> {
 
     @Override
-    public String onMessage(NetBean request) {
-        if (request == null || !(request instanceof RequestBean)) {
-            System.err.println("Request Format is wrong or a null, cannot process.");
+    public String onMessage(RequestNetBean request) {
+        RequestNetBean requestBean = (RequestNetBean) request;
+        if (request.getMessage().length == 1) {
+            NodeManager.ping(requestBean.getHost(), requestBean.getPort());
         }
-        RequestBean requestBean = (RequestBean) request;
-        if (requestBean.getMessage() != null && requestBean.getMessage().length <= 0) {
-            System.err.println("Client Request is empty or a null, cannot process.");
-            return null;
-        }
-        interceptor.addRequest(requestBean);
         return null;
     }
 
     @Override
-    public String onChannel(NetBean request) {
-        if (request == null || !(request instanceof RequestBean)) {
-            System.err.println("Client Request is empty or a null on channel, cannot process.");
+    public String onChannel(RequestNetBean request) {
+        String messageStr = request.getMessageAsString();
+        if (null == messageStr) {
+            System.err.println("Cannot not process request with null message");
             return null;
         }
-        RequestBean requestBean = (RequestBean) request;
-        String address = requestBean.getAddress().toString();
-        if (address.startsWith("/")) {
-            address = address.replace("/", "");
+        MessageModel message = StringUtil.fromJson(messageStr, MessageModel.class);
+        switch (message.getAction()) {
+            case Action.REPORT_ACTION:
+                break;
+            default:
+                System.err.println(String.format("Cannot perform request with action:", message.getAction()));
         }
-        String[] tmp = address.split(":");
-        NodeBean addedNode = NodeManager.addNode(tmp[0], Integer.valueOf(tmp[1]));
-        return addedNode.getId();
+
+        return null;
     }
 
-    public class ServerMessageInterceptor extends Thread {
-
-        private ConcurrentLinkedQueue<RequestBean> requestQueue;
-        private Lock lock;
-        private Condition newElement;
-
-        public ServerMessageInterceptor() {
-            lock = new ReentrantLock();
-            newElement = lock.newCondition();
-            requestQueue = new ConcurrentLinkedQueue<RequestBean>();
-        }
-
-        public void run() {
-            while (true) {
-                lock.lock();
-                try {
-                    while (requestQueue.isEmpty()) {
-                        newElement.await();
-                    }
-                    RequestBean request = requestQueue.poll();
-                    //************************** Process your request here
-                    if (request.getMessage().length == 1) {
-                        NodeManager.ping(request.getHost(), request.getPort());
-                    }
-                    String message = request.getMessageAsString();
-                    //
-                    //////////////CAST message to task to do
-                    //
-                    //**************************
-                } catch (Exception e) {
-                    e.printStackTrace();
-                } finally {
-                    lock.unlock();
-                }
-            }
-        }
-
-        public void addRequest(RequestBean request) {
-            lock.lock();
-            try {
-                requestQueue.add(request);
-                newElement.signalAll();
-            } finally {
-                lock.unlock();
-            }
-        }
-    }
 }

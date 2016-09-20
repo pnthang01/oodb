@@ -5,13 +5,14 @@
  */
 package io.cluster.node;
 
-import io.cluster.listener.MessageListener;
+import io.cluster.listener.IMessageListener;
 import io.cluster.node.bean.NodeBean;
-import java.util.HashMap;
-import java.util.Map;
+import io.cluster.util.StringUtil;
 import java.util.Map.Entry;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  *
@@ -19,12 +20,14 @@ import java.util.TimerTask;
  */
 public class NodeManager {
 
-    private Map<String, NodeBean> clientNodeMap;
+    private final ConcurrentMap<String, ConcurrentMap<String, NodeBean>> groupedNodeMap;
+    private final ConcurrentMap<String, NodeBean> nodeMap;
     private MasterNode master;
     private static NodeManager _instance = new NodeManager();
 
     private NodeManager() {
-        this.clientNodeMap = new HashMap<>();
+        this.groupedNodeMap = new ConcurrentHashMap<>();
+        this.nodeMap = new ConcurrentHashMap();
         _init();
     }
 
@@ -33,25 +36,25 @@ public class NodeManager {
     }
 
     /**
-     * Run a task will check all nodes are still alive or not per 4 seconds.
+     * Run a task will check all nodes are still alive or not per 3 seconds.
      */
     public void _init() {
         Timer timer = new Timer();
         TimerTask checkNodeAliveTask = new TimerTask() {
             @Override
             public void run() {
-                for (String nodeId : clientNodeMap.keySet()) {
-                    NodeBean node = clientNodeMap.get(nodeId);
+                for (Entry<String, NodeBean> nodeEntry : nodeMap.entrySet()) {
+                    NodeBean node = nodeEntry.getValue();
                     if (System.currentTimeMillis() - node.getLastPingTime() > 10000) {
-                        node.setStatus(0);
+                        node.setStatus(NodeBean.TIMEOUT);
                     }
                     if (System.currentTimeMillis() - node.getLastPingTime() > 60000) {
-                        clientNodeMap.remove(nodeId);
+                        node.setStatus(NodeBean.DIED);
                     }
                 }
             }
         };
-        timer.schedule(checkNodeAliveTask, 0, 4000);//Check node is dead per seconds
+        timer.schedule(checkNodeAliveTask, 0, 3000);//Check node is dead per seconds
         //
     }
 
@@ -60,13 +63,11 @@ public class NodeManager {
      *
      * @return
      */
-    public static String checkNodeStatuses() {
+    public static String checkAllNodeStatus() {
         StringBuilder sb = new StringBuilder();
-        synchronized (_instance.clientNodeMap) {
-            int index = 1;
-            for (Entry<String, NodeBean> entry : _instance.clientNodeMap.entrySet()) {
-                sb.append("\n").append(index).append(". ").append(entry.getValue().toString());
-            }
+        int index = 1;
+        for (Entry<String, NodeBean> nodeEntry : _instance.nodeMap.entrySet()) {
+            sb.append("\n").append(index).append(".").append(nodeEntry.getValue().toString());
         }
         //
         return sb.toString();
@@ -75,16 +76,30 @@ public class NodeManager {
     /**
      * Add one node to cluster.
      *
+     * @param group
      * @param host
      * @param port
      * @return
      */
-    public static NodeBean addNode(String host, int port) {
-        String hashId = getHashId(host, port);
-        NodeBean node = new NodeBean(hashId, "Test name" + port, host, port);
-        synchronized (_instance.clientNodeMap) {
-            _instance.clientNodeMap.put(hashId, node);
+    public static NodeBean addNode(String group, String host, int port) {
+        String name = "Test name" + port;//TODO: auto generate node name
+        NodeBean addedNode = addNode(group, name, host, port);
+        System.out.println(String.format("Node %s:%d is added succesfully", host, port));
+        return addedNode;
+    }
+
+    private static NodeBean addNode(String group, String name, String host, int port) {
+        String hashId = StringUtil.getHashAddress(host, port);
+        NodeBean node = new NodeBean(hashId, name, host, port);
+        node.setGroup(group);
+        ConcurrentMap<String, NodeBean> groupMap = _instance.groupedNodeMap.get(group);
+        if (null == groupMap) {
+            groupMap = new ConcurrentHashMap();
+            ConcurrentMap<String, NodeBean> putIfAbsent = _instance.groupedNodeMap.putIfAbsent(group, groupMap);
+            groupMap = putIfAbsent == null ? groupMap : putIfAbsent;
         }
+        groupMap.putIfAbsent(hashId, node);
+        _instance.nodeMap.putIfAbsent(hashId, node);
         //
         return node;
     }
@@ -92,17 +107,20 @@ public class NodeManager {
     /**
      * Remove one node from cluster
      *
+     * @param group
      * @param host
      * @param port
      */
-    public static void removeNode(String host, int port) {
-        String hashId = getHashId(host, port);
-        synchronized (_instance.clientNodeMap) {
-            _instance.clientNodeMap.remove(hashId);
+    public static void removeNode(String group, String host, int port) {
+        String hashId = StringUtil.getHashAddress(host, port);
+        ConcurrentMap<String, NodeBean> nodeMap = _instance.groupedNodeMap.get(group);
+        if (null != nodeMap) {
+            nodeMap.remove(hashId);
         }
+        _instance.nodeMap.remove(hashId);
     }
 
-    public static void addListener(String channel, MessageListener listener) {
+    public static void addListener(String channel, IMessageListener listener) {
         _instance.master.addListenner(channel, listener);
     }
 
@@ -116,13 +134,30 @@ public class NodeManager {
     }
 
     /**
+     * Send message to all nodes in a group
+     *
+     * @param channel
+     * @param group
+     * @param message
+     */
+    public static void sendMessageToGroupClient(String channel, String group, String message) {
+        ConcurrentMap<String, NodeBean> groupNode = _instance.groupedNodeMap.get(group);
+        if (null == groupNode || groupNode.isEmpty()) {
+            return;
+        }
+        for (Entry<String, NodeBean> entry : groupNode.entrySet()) {
+            _instance.master.sendMessageToSingleClient(channel, entry.getKey(), message);
+        }
+    }
+
+    /**
      * Send message to single node
      *
      * @param id
      * @param message
      */
-    public static void sendMessageToSingleClient(String id, String channel, String message) {
-        _instance.master.sendMessageToSingleClient(id, channel, message);
+    public static void sendMessageToSingleClient(String channel, String id, String message) {
+        _instance.master.sendMessageToSingleClient(channel, id, message);
     }
 
     /**
@@ -132,8 +167,8 @@ public class NodeManager {
      * @param port
      */
     public static void ping(String host, int port) {
-        String hashId = getHashId(host, port);
-        NodeBean node = _instance.clientNodeMap.get(hashId);
+        String hashId = StringUtil.getHashAddress(host, port);
+        NodeBean node = _instance.nodeMap.get(hashId);
         if (null != node) {
             node.ping();
         }
@@ -146,7 +181,7 @@ public class NodeManager {
      * @return
      */
     public static NodeBean getNodeById(String id) {
-        return _instance.clientNodeMap.get(id);
+        return _instance.nodeMap.get(id);
     }
 
     /**
@@ -156,9 +191,10 @@ public class NodeManager {
      * @param index
      * @return
      */
+    @Deprecated
     public static NodeBean getNodeByIndex(int index) {
         int count = 0;
-        for (Entry<String, NodeBean> entry : _instance.clientNodeMap.entrySet()) {
+        for (Entry<String, NodeBean> entry : _instance.nodeMap.entrySet()) {
             if (count == index) {
                 return entry.getValue();
             }
@@ -167,14 +203,4 @@ public class NodeManager {
         return null;
     }
 
-    /**
-     * Get nodeId by host and port
-     *
-     * @param host
-     * @param port
-     * @return
-     */
-    private static String getHashId(String host, int port) {
-        return host + ":" + port;
-    }
 }

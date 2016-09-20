@@ -5,10 +5,12 @@
  */
 package io.cluster.node;
 
-import io.cluster.listener.MessageListener;
+import io.cluster.listener.IMessageListener;
+import io.cluster.listener.NodeMessageListener;
 import io.cluster.listener.ServerMessageListener;
 import io.cluster.net.NIOAsyncServer;
-import java.io.File;
+import io.cluster.util.Constants;
+import io.cluster.util.Constants.Channel;
 
 /**
  *
@@ -17,39 +19,37 @@ import java.io.File;
 public class MasterNode {
 
     private NIOAsyncServer server;
+    private static MasterNode _instance;
 
     public MasterNode() {
-        System.out.println("No config file, system will use default config file at config/NIOServerConfig.txt");
-        File defaultConfig = new File("config/NIOServerConfig.txt");
-        init(defaultConfig);
-    }
-
-    public MasterNode(File configFile) {
-
-        init(configFile);
-    }
-
-    private void init(File configFile) {
-        if (!configFile.exists() || !configFile.isFile()) {
-            System.err.println("Couldn't find default config file.");
-            System.exit(0);
-        }
-        server = new NIOAsyncServer(configFile);
+        server = new NIOAsyncServer();
         server.start();
+        //****** Have to read config to read channel 
         ServerMessageListener listener = new ServerMessageListener();
-        server.addListener("system", listener);
+        server.addListener(Channel.SYSTEM_CHANNEL, listener);
+        NodeMessageListener nodeListner = new NodeMessageListener();
+        server.addListener(Channel.NODE_CHANNEL, nodeListner);
         NodeManager.setMasterNode(this);
     }
 
-    public void addListenner(String channel, MessageListener listenner) {
-        server.addListener(channel, listenner);
+    public static void initialize(String configFileDes) {
+        if (null == configFileDes || configFileDes.isEmpty()) {
+            System.out.println("No config file, system will use default config file at config");
+        } else {
+            Constants.setBaseConfigFolder(configFileDes);
+        }
+        _instance = new MasterNode();
     }
 
-    public void sendMessageToAllClient(String channel, String message) {
-        server.sendMessageToAllBean(channel, message);
+    public static void addListenner(String channel, IMessageListener listenner) {
+        _instance.server.addListener(channel, listenner);
     }
 
-    public void sendMessageToSingleClient(String id, String channel, String message) {
-        server.sendMessageToSingleBean(id, channel, message);
+    public static void sendMessageToAllClient(String channel, String message) {
+        _instance.server.sendMessageToAllBean(channel, message);
+    }
+
+    public static void sendMessageToSingleClient(String id, String channel, String message) {
+        _instance.server.sendMessageToSingleBean(id, channel, message);
     }
 }

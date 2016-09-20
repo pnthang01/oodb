@@ -5,10 +5,16 @@
  */
 package io.cluster.net.bean;
 
+import java.net.SocketAddress;
+
 /**
  *
  * @author thangpham
  */
-public abstract class NetBean {
-    public abstract String getMessageAsString();
+public class SystemNetBean extends INetBean {
+
+    public SystemNetBean(SocketAddress address, byte... message) {
+        super(address, message);
+    }
+
 }

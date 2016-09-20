@@ -11,6 +11,9 @@ package io.cluster.node.bean;
  */
 public class NodeBean {
 
+    public static int RUNNING = 1, OVERLOAD = 2, TIMEOUT = 0, DIED = -1;
+
+    private String group;
     private String id;
     private String name;
     private String host;
@@ -20,6 +23,17 @@ public class NodeBean {
     private int status; //1 = Is running; 2 = Overload; 0 = Timeout; -1 = Died
 
     public NodeBean() {
+        this.startedTime = System.currentTimeMillis();
+        this.lastPingTime = System.currentTimeMillis();
+        this.status = 1;
+    }
+
+    public NodeBean(String group, String id, String name, String host, int port) {
+        this.group = group;
+        this.id = id;
+        this.name = name;
+        this.host = host;
+        this.port = port;
         this.startedTime = System.currentTimeMillis();
         this.lastPingTime = System.currentTimeMillis();
         this.status = 1;
@@ -37,7 +51,15 @@ public class NodeBean {
 
     @Override
     public String toString() {
-        return "NodeBean{" + "id=" + id + ", name=" + name + ", host=" + host + ", port=" + port + ", startedTime=" + startedTime + ", lastPingTime=" + lastPingTime + ", status=" + status + '}';
+        return "NodeBean{" + "group=" + group + ", id=" + id + ", name=" + name + ", host=" + host + ", port=" + port + ", startedTime=" + startedTime + ", lastPingTime=" + lastPingTime + ", status=" + status + '}';
+    }
+
+    public String getGroup() {
+        return group;
+    }
+
+    public void setGroup(String group) {
+        this.group = group;
     }
 
     public int getStatus() {

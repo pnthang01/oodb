@@ -5,9 +5,9 @@
  */
 package demo;
 
-import io.cluster.listener.MessageListener;
-import io.cluster.net.bean.NetBean;
-import io.cluster.net.bean.ResponseBean;
+import io.cluster.listener.IMessageListener;
+import io.cluster.net.bean.INetBean;
+import io.cluster.net.bean.ResponseNetBean;
 import io.cluster.node.WorkerNode;
 import java.util.Scanner;
 
@@ -21,8 +21,6 @@ public class TestClient {
         String config = null;
         if (args.length > 0) {
             config = args[0];
-        } else {
-            config = "config/NIOClientConfig.txt";
         }
         WorkerNode.initialize(config);
         WorkerNode.addListener("testchannel", new ClientTestChannel());
@@ -41,19 +39,19 @@ public class TestClient {
         } while (choice != 0);
     }
 
-    public static class ClientTestChannel implements MessageListener {
+    public static class ClientTestChannel extends IMessageListener {
 
         @Override
-        public String onChannel(NetBean bean) {
+        public String onChannel(INetBean bean) {
             throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
         }
 
         @Override
-        public String onMessage(NetBean bean) {
-            if (null == bean || !(bean instanceof ResponseBean)) {
+        public String onMessage(INetBean bean) {
+            if (null == bean || !(bean instanceof ResponseNetBean)) {
                 return null;
             }
-            ResponseBean response = (ResponseBean) bean;
+            ResponseNetBean response = (ResponseNetBean) bean;
             String message = response.getMessageAsString();
             System.out.println("Receive message from server: " + message);
             return null;

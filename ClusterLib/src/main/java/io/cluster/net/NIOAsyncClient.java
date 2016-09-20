@@ -5,19 +5,16 @@
  */
 package io.cluster.net;
 
-import java.io.FileInputStream;
-import java.util.Properties;
-import io.cluster.listener.MessageListener;
-import io.cluster.net.bean.RequestBean;
-import io.cluster.net.bean.ResponseBean;
-import java.io.File;
+import io.cluster.listener.IMessageListener;
+import io.cluster.net.bean.ResponseNetBean;
+import io.cluster.util.ClientConfigAutoLoader;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  *
@@ -25,22 +22,20 @@ import java.util.Map;
  */
 public class NIOAsyncClient extends Thread {
 
-    private Map<String, List<MessageListener>> channelListeners;
-    AsynchronousSocketChannel soc;
+    private final ConcurrentMap<String, List<IMessageListener>> channelListeners;
+    private AsynchronousSocketChannel soc;
     int SIZE, SLEEP, pid = -1;
 
-    public NIOAsyncClient(File configFile) {
-        Properties prop = new Properties();
-        channelListeners = new HashMap<>();
+    public NIOAsyncClient() {
+        channelListeners = new ConcurrentHashMap<>();
         try {
-
-            prop.load(new FileInputStream(configFile));
-            SLEEP = Integer.parseInt(prop.getProperty("SLEEP"));
-            SIZE = Integer.parseInt(prop.getProperty("SIZE"));
-
+            SIZE = Integer.parseInt(ClientConfigAutoLoader.getConfigByName("SIZE"));
+            String host = ClientConfigAutoLoader.getConfigByName("HOST");
+            int port = Integer.parseInt(ClientConfigAutoLoader.getConfigByName("PORT"));
+            SLEEP = Integer.parseInt(ClientConfigAutoLoader.getConfigByName("SLEEP"));
+            System.out.println(String.format("Connect to server at %s:%d", host, port));
             soc = AsynchronousSocketChannel.open();
-            soc.connect(new InetSocketAddress(prop.getProperty("HOST"),
-                    Integer.parseInt(prop.getProperty("PORT")))).get();
+            soc.connect(new InetSocketAddress(host, port)).get();
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -64,11 +59,12 @@ public class NIOAsyncClient extends Thread {
         }
     }
 
-    public void addListener(String channel, MessageListener listener) {
-        List<MessageListener> listeners = channelListeners.get(channel);
+    public void addListener(String channel, IMessageListener listener) {
+        List<IMessageListener> listeners = channelListeners.get(channel);
         if (null == listeners) {
-            listeners = new ArrayList<MessageListener>();
-            channelListeners.put(channel, listeners);
+            listeners = new ArrayList<>();
+            List<IMessageListener> checkList = channelListeners.putIfAbsent(channel, listeners);
+            listeners = checkList == null ? listeners : checkList;
         }
         listeners.add(listener);
     }
@@ -102,14 +98,15 @@ public class NIOAsyncClient extends Thread {
                     bbuf.get(bb, 0, le);
                     String channel = new String(bb, 0, 32).trim();
                     //
-                    List<MessageListener> listeners = channelListeners.get(channel);
+                    List<IMessageListener> listeners = channelListeners.get(channel);
                     if (null != listeners) {
                         byte[] message = new byte[le - 32];
                         System.arraycopy(bb, 32, message, 0, message.length);
-                        for (MessageListener listener : listeners) {
-                            listener.onMessage(new ResponseBean(message));
+                        for (IMessageListener listener : listeners) {
+                            listener._onMessage(new ResponseNetBean(soc.getRemoteAddress(), message));
                         }
                     }
+                    bbuf.clear();
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
