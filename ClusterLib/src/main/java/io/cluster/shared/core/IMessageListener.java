@@ -3,9 +3,9 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package io.cluster.listener;
+package io.cluster.shared.core;
 
-import io.cluster.net.bean.INetBean;
+import io.cluster.shared.bean.INetBean;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;

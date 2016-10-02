@@ -3,10 +3,10 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package io.cluster.net;
+package io.cluster.client.net;
 
-import io.cluster.listener.IMessageListener;
-import io.cluster.net.bean.ResponseNetBean;
+import io.cluster.shared.core.IMessageListener;
+import io.cluster.shared.bean.ResponseNetBean;
 import io.cluster.util.ClientConfigAutoLoader;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;

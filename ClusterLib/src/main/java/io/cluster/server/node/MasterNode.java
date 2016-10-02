@@ -3,12 +3,12 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package io.cluster.node;
+package io.cluster.server.node;
 
-import io.cluster.listener.IMessageListener;
-import io.cluster.listener.NodeMessageListener;
-import io.cluster.listener.ServerMessageListener;
-import io.cluster.net.NIOAsyncServer;
+import io.cluster.shared.core.IMessageListener;
+import io.cluster.server.listener.ServerMessageListener;
+import io.cluster.server.listener.NodeMonitoringListener;
+import io.cluster.server.net.NIOAsyncServer;
 import io.cluster.util.Constants;
 import io.cluster.util.Constants.Channel;
 
@@ -25,9 +25,9 @@ public class MasterNode {
         server = new NIOAsyncServer();
         server.start();
         //****** Have to read config to read channel 
-        ServerMessageListener listener = new ServerMessageListener();
+        NodeMonitoringListener listener = new NodeMonitoringListener();
         server.addListener(Channel.SYSTEM_CHANNEL, listener);
-        NodeMessageListener nodeListner = new NodeMessageListener();
+        ServerMessageListener nodeListner = new ServerMessageListener();
         server.addListener(Channel.NODE_CHANNEL, nodeListner);
         NodeManager.setMasterNode(this);
     }

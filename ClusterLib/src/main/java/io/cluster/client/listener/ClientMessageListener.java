@@ -3,17 +3,20 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package io.cluster.listener;
+package io.cluster.client.listener;
 
-import io.cluster.net.bean.INetBean;
-import io.cluster.net.bean.ResponseNetBean;
+import io.cluster.shared.core.IMessageListener;
+import io.cluster.shared.bean.INetBean;
+import io.cluster.shared.bean.ResponseNetBean;
+import io.cluster.shared.model.MessageModel;
+import io.cluster.util.Constants.Action;
 import io.cluster.util.StringUtil;
 
 /**
  *
  * @author thangpham
  */
-public class ClientMessageListener extends IMessageListener{
+public class ClientMessageListener extends IMessageListener {
 
     @Override
     public String onChannel(INetBean bean) {
@@ -27,10 +30,22 @@ public class ClientMessageListener extends IMessageListener{
             return null;
         }
         ResponseNetBean response = (ResponseNetBean) bean;
-        String message = response.getMessageAsString();
-        System.out.println("Send message".equals(message));
+        String messageStr = response.getMessageAsString();
+        if (null == messageStr) {
+            System.err.println("Cannot not process request with null message");
+            return null;
+        }
+        MessageModel message = StringUtil.fromJson(messageStr, MessageModel.class);
+        switch (message.getAction()) {
+            case Action.START_ACTION:
+                break;
+            case Action.STOP_ACTION:
+                break;
+            default:
+                System.err.println(String.format("Cannot perform request with action:", message.getAction()));
+        }
         System.out.println("Receive message from server: " + message);
         return null;
     }
-    
+
 }

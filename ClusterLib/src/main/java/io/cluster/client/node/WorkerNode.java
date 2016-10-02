@@ -3,14 +3,21 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package io.cluster.node;
+package io.cluster.client.node;
 
-import io.cluster.listener.ClientMessageListener;
-import io.cluster.listener.IMessageListener;
-import io.cluster.listener.NodeMessageListener;
-import io.cluster.net.NIOAsyncClient;
+import io.cluster.client.listener.ClientMessageListener;
+import io.cluster.shared.core.IMessageListener;
+import io.cluster.server.listener.ServerMessageListener;
+import io.cluster.client.net.NIOAsyncClient;
+import io.cluster.client.scheduler.MonitorHardwareClient;
 import io.cluster.util.Constants;
 import io.cluster.util.Constants.Channel;
+import io.cluster.util.ShutdownHookCleanUp;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -20,15 +27,24 @@ public class WorkerNode {
 
     private final NIOAsyncClient client;
     private static WorkerNode _instance;
-
+    private ScheduledExecutorService executor;
+    
     public WorkerNode() {
         client = new NIOAsyncClient();
         client.start();
+        
+        //Background scheduled
+        executor = Executors.newScheduledThreadPool(3);
+        ShutdownHookCleanUp.addExecutor(executor);
+        MonitorHardwareClient monitorHardware = new MonitorHardwareClient();
+        executor.scheduleWithFixedDelay(monitorHardware, 5, 5, TimeUnit.SECONDS);
         //
         ClientMessageListener listener = new ClientMessageListener();
         client.addListener(Channel.SYSTEM_CHANNEL, listener);
-        NodeMessageListener nodeListener = new NodeMessageListener();
-        client.addListener(Channel.NODE_CHANNEL, nodeListener);
+    }
+    
+    public static void stop() {
+        
     }
 
     public static void initialize(String configFileDes) {

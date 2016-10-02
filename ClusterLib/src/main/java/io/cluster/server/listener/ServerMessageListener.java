@@ -3,12 +3,13 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package io.cluster.listener;
+package io.cluster.server.listener;
 
-import io.cluster.listener.model.MessageModel;
-import io.cluster.net.bean.RequestNetBean;
-import io.cluster.node.NodeManager;
-import io.cluster.node.bean.NodeBean;
+import io.cluster.shared.core.IMessageListener;
+import io.cluster.shared.model.MessageModel;
+import io.cluster.shared.bean.RequestNetBean;
+import io.cluster.server.node.NodeManager;
+import io.cluster.server.bean.NodeBean;
 import io.cluster.util.Constants.Action;
 import io.cluster.util.Constants.Channel;
 import io.cluster.util.StringUtil;
@@ -17,7 +18,7 @@ import io.cluster.util.StringUtil;
  *
  * @author thangpham
  */
-public class NodeMessageListener extends IMessageListener<RequestNetBean> {
+public class ServerMessageListener extends IMessageListener<RequestNetBean> {
 
     @Override
     public String onChannel(RequestNetBean bean) {

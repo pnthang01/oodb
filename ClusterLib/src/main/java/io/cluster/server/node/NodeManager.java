@@ -3,10 +3,10 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package io.cluster.node;
+package io.cluster.server.node;
 
-import io.cluster.listener.IMessageListener;
-import io.cluster.node.bean.NodeBean;
+import io.cluster.shared.core.IMessageListener;
+import io.cluster.server.bean.NodeBean;
 import io.cluster.util.StringUtil;
 import java.util.Map.Entry;
 import java.util.Timer;

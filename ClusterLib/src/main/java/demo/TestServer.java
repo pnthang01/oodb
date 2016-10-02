@@ -5,11 +5,11 @@
  */
 package demo;
 
-import io.cluster.listener.IMessageListener;
-import io.cluster.net.bean.INetBean;
-import io.cluster.net.bean.RequestNetBean;
-import io.cluster.node.MasterNode;
-import io.cluster.node.NodeManager;
+import io.cluster.shared.core.IMessageListener;
+import io.cluster.shared.bean.INetBean;
+import io.cluster.shared.bean.RequestNetBean;
+import io.cluster.server.node.MasterNode;
+import io.cluster.server.node.NodeManager;
 import java.util.Scanner;
 
 /**
