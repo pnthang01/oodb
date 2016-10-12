@@ -8,8 +8,8 @@ package io.cluster.server.listener;
 import io.cluster.shared.core.IMessageListener;
 import io.cluster.shared.model.MessageModel;
 import io.cluster.shared.bean.RequestNetBean;
-import io.cluster.server.node.NodeManager;
 import io.cluster.server.bean.NodeBean;
+import io.cluster.server.node.MasterNode;
 import io.cluster.util.Constants.Action;
 import io.cluster.util.Constants.Channel;
 import io.cluster.util.StringUtil;
@@ -18,7 +18,9 @@ import io.cluster.util.StringUtil;
  *
  * @author thangpham
  */
-public class ServerMessageListener extends IMessageListener<RequestNetBean> {
+public class JobServerMessageListener extends IMessageListener<RequestNetBean> {
+    
+    private final MasterNode masterNode = MasterNode.load();
 
     @Override
     public String onChannel(RequestNetBean bean) {
@@ -27,7 +29,7 @@ public class ServerMessageListener extends IMessageListener<RequestNetBean> {
             address = address.replace("/", "");
         }
         String[] tmp = address.split(":");
-        NodeBean addedNode = NodeManager.addNode(Channel.NONE_GROUP, tmp[0], Integer.valueOf(tmp[1]));
+        NodeBean addedNode = masterNode.addNode(Channel.NONE_GROUP, tmp[0], Integer.valueOf(tmp[1]));
         return addedNode.getId();
     }
 

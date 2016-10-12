@@ -5,26 +5,31 @@
  */
 package io.cluster.client.listener;
 
+import static com.sun.corba.se.spi.presentation.rmi.StubAdapter.request;
+import io.cluster.server.bean.NodeBean;
+import io.cluster.server.node.MasterNode;
 import io.cluster.shared.core.IMessageListener;
 import io.cluster.shared.bean.INetBean;
+import io.cluster.shared.bean.RequestNetBean;
 import io.cluster.shared.bean.ResponseNetBean;
 import io.cluster.shared.model.MessageModel;
 import io.cluster.util.Constants.Action;
 import io.cluster.util.StringUtil;
+import java.util.Map;
 
 /**
  *
  * @author thangpham
  */
-public class ClientMessageListener extends IMessageListener {
+public class JobClientMessageListener extends IMessageListener<ResponseNetBean> {
 
     @Override
-    public String onChannel(INetBean bean) {
+    public String onChannel(ResponseNetBean bean) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public String onMessage(INetBean bean) {
+    public String onMessage(ResponseNetBean bean) {
         if (null == bean || !(bean instanceof ResponseNetBean) || StringUtil.isNullOrEmpty(bean.getMessage())) {
             System.err.println("Client Request is empty or a null or wrong net bean, cannot process.");
             return null;
@@ -38,6 +43,7 @@ public class ClientMessageListener extends IMessageListener {
         MessageModel message = StringUtil.fromJson(messageStr, MessageModel.class);
         switch (message.getAction()) {
             case Action.START_ACTION:
+                Map<String, String> values = message.getValues();
                 break;
             case Action.STOP_ACTION:
                 break;

@@ -8,13 +8,19 @@ package io.cluster.client.net;
 import io.cluster.shared.core.IMessageListener;
 import io.cluster.shared.bean.ResponseNetBean;
 import io.cluster.util.ClientConfigAutoLoader;
+import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  *
@@ -22,13 +28,19 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class NIOAsyncClient extends Thread {
 
-    private final ConcurrentMap<String, List<IMessageListener>> channelListeners;
+    private ConcurrentMap<String, List<IMessageListener>> channelListeners;
     private AsynchronousSocketChannel soc;
     int SIZE, SLEEP, pid = -1;
+    private Lock selfCloseLock;
+    private Condition selfLockCondition;
+    private boolean isSelfClosed = Boolean.FALSE;
+    private AtomicInteger retries = new AtomicInteger();
 
-    public NIOAsyncClient() {
-        channelListeners = new ConcurrentHashMap<>();
+    public NIOAsyncClient(ConcurrentMap<String, List<IMessageListener>> channelListeners) {
         try {
+            this.channelListeners = channelListeners;
+            selfCloseLock = new ReentrantLock();
+            selfLockCondition = selfCloseLock.newCondition();
             SIZE = Integer.parseInt(ClientConfigAutoLoader.getConfigByName("SIZE"));
             String host = ClientConfigAutoLoader.getConfigByName("HOST");
             int port = Integer.parseInt(ClientConfigAutoLoader.getConfigByName("PORT"));
@@ -50,30 +62,19 @@ public class NIOAsyncClient extends Thread {
         } catch (Exception ex) {
             ex.printStackTrace();
         } finally {
-            try {
-                soc.shutdownInput();
-                soc.shutdownOutput();
-                soc.close();
-            } catch (Exception e) {
-            }
+            close();
         }
     }
 
-    public void addListener(String channel, IMessageListener listener) {
-        List<IMessageListener> listeners = channelListeners.get(channel);
-        if (null == listeners) {
-            listeners = new ArrayList<>();
-            List<IMessageListener> checkList = channelListeners.putIfAbsent(channel, listeners);
-            listeners = checkList == null ? listeners : checkList;
+    private void selfClose() {
+        selfCloseLock.lock();
+        try {
+            close();
+            isSelfClosed = Boolean.TRUE;
+            selfLockCondition.signalAll();
+        } finally {
+            selfCloseLock.unlock();
         }
-        listeners.add(listener);
-    }
-
-    public void sendRequest(String channel, String request) {
-        byte[] finalBytes = new byte[32 + SIZE];
-        System.arraycopy(channel.getBytes(), 0, finalBytes, 0, channel.length());
-        System.arraycopy(request.getBytes(), 0, finalBytes, 32, request.length());
-        soc.write(ByteBuffer.wrap(finalBytes));
     }
 
     public void close() {
@@ -86,11 +87,61 @@ public class NIOAsyncClient extends Thread {
         }
     }
 
+    public void waitForSelfClose() {
+        selfCloseLock.lock();
+        try {
+            while (!isSelfClosed) {
+                selfLockCondition.await();
+            }
+        } catch (InterruptedException ex) {
+            ex.printStackTrace();
+        } finally {
+            selfCloseLock.unlock();
+        }
+    }
+
+    public void setChannelListeners(ConcurrentMap<String, List<IMessageListener>> channelListeners) {
+        this.channelListeners = channelListeners;
+    }
+    
+    public SocketAddress getLocalAddress() throws IOException {
+        return soc.getLocalAddress();
+    }
+
+//    public void addListener(String channel, IMessageListener listener) {
+//        List<IMessageListener> listeners = channelListeners.get(channel);
+//        if (null == listeners) {
+//            listeners = new ArrayList<>();
+//            List<IMessageListener> checkList = channelListeners.putIfAbsent(channel, listeners);
+//            listeners = checkList == null ? listeners : checkList;
+//        }
+//        listeners.add(listener);
+//    }
+    public void sendRequest(String channel, String request) {
+        try {
+            byte[] finalBytes = new byte[32 + SIZE];
+            System.arraycopy(channel.getBytes(), 0, finalBytes, 0, channel.length());
+            System.arraycopy(request.getBytes(), 0, finalBytes, 32, request.length());
+            soc.write(ByteBuffer.wrap(finalBytes)).get();
+        } catch (InterruptedException | ExecutionException e) {
+            System.err.println("Cannot send request to server, due to lost connection or something.");
+            retries.incrementAndGet();
+        } catch (Exception ex) {
+            System.err.println("Cannot identify the problem, close connection to server.");
+            ex.printStackTrace();
+            retries.incrementAndGet();
+        } finally {
+            if (retries.get() > 5) {
+                selfClose();
+            }
+        }
+    }
+
     private void readResponse() {
         ByteBuffer bbuf = ByteBuffer.allocateDirect(SIZE);
-        int le = -1;
+        int le = -1, retries = 0;
         byte[] bb = new byte[32 + SIZE];
-        while (true) {
+        while (retries < 5) {
             try {
                 le = soc.read(bbuf).get();
                 if (le != -1) {
@@ -108,12 +159,19 @@ public class NIOAsyncClient extends Thread {
                     }
                     bbuf.clear();
                 }
+            } catch (InterruptedException | ExecutionException ex) {
+                retries++;
+                System.out.println("Cannot connect to server, retry " + retries + " times");
+                ex.printStackTrace();
             } catch (Exception ex) {
+                retries++;
+                System.out.println("Unknown error happends, retry " + retries + " times");
                 ex.printStackTrace();
             } finally {
                 bbuf.clear();
             }
         }
+        selfClose();
     }
 
     public class Ping extends Thread {
@@ -129,8 +187,8 @@ public class NIOAsyncClient extends Thread {
             while (true) {
                 try {
                     Thread.sleep(SLEEP);
-                    soc.write(ByteBuffer.wrap(ping));
-                } catch (InterruptedException ex) {
+                    soc.write(ByteBuffer.wrap(ping)).get();
+                } catch (Exception ex) {
                 }
             }
         }

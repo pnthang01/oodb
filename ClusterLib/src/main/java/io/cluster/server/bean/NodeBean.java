@@ -5,6 +5,10 @@
  */
 package io.cluster.server.bean;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
 /**
  *
  * @author thangpham
@@ -21,11 +25,13 @@ public class NodeBean {
     private long startedTime;
     private long lastPingTime;
     private int status; //1 = Is running; 2 = Overload; 0 = Timeout; -1 = Died
+    private ConcurrentMap<String, String> state;
 
     public NodeBean() {
         this.startedTime = System.currentTimeMillis();
         this.lastPingTime = System.currentTimeMillis();
         this.status = 1;
+        this.state = new ConcurrentHashMap<>();
     }
 
     public NodeBean(String group, String id, String name, String host, int port) {
@@ -37,6 +43,7 @@ public class NodeBean {
         this.startedTime = System.currentTimeMillis();
         this.lastPingTime = System.currentTimeMillis();
         this.status = 1;
+        this.state = new ConcurrentHashMap<>();
     }
 
     public NodeBean(String id, String name, String host, int port) {
@@ -47,11 +54,20 @@ public class NodeBean {
         this.startedTime = System.currentTimeMillis();
         this.lastPingTime = System.currentTimeMillis();
         this.status = 1;
+        this.state = new ConcurrentHashMap<>();
     }
 
     @Override
     public String toString() {
         return "NodeBean{" + "group=" + group + ", id=" + id + ", name=" + name + ", host=" + host + ", port=" + port + ", startedTime=" + startedTime + ", lastPingTime=" + lastPingTime + ", status=" + status + '}';
+    }
+
+    public ConcurrentMap<String, String> getState() {
+        return state;
+    }
+
+    public void setState(Map<String, String> state) {
+        this.state.putAll(state);
     }
 
     public String getGroup() {

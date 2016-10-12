@@ -19,6 +19,8 @@ import java.util.Map;
  * @author thangpham
  */
 public class MonitorHardwareClient implements Runnable {
+    
+    private final WorkerNode workerNode = WorkerNode.load();
 
     @Override
     public void run() {
@@ -34,7 +36,7 @@ public class MonitorHardwareClient implements Runnable {
             MessageModel model = new MessageModel();
             model.setAction(Constants.Action.REPORT_ACTION);
             model.setValues(nodeInfo);
-            WorkerNode.sendRequest(Constants.Channel.SYSTEM_CHANNEL, StringUtil.toJson(model));
+            workerNode.sendRequest(Constants.Channel.SYSTEM_CHANNEL, StringUtil.toJson(model));
         } catch (Exception ex) {
             ex.printStackTrace();
         }

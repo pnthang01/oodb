@@ -9,7 +9,10 @@ import io.cluster.shared.core.IMessageListener;
 import io.cluster.shared.bean.INetBean;
 import io.cluster.shared.bean.ResponseNetBean;
 import io.cluster.client.node.WorkerNode;
+import io.cluster.util.Constants;
+import java.net.SocketAddress;
 import java.util.Scanner;
+import java.util.concurrent.ExecutionException;
 
 /**
  *
@@ -17,24 +20,30 @@ import java.util.Scanner;
  */
 public class TestClient {
 
-    public static void main(String[] args) {
-        String config = null;
+    public static void main(String[] args) throws InterruptedException, ExecutionException {
         if (args.length > 0) {
-            config = args[0];
+            Constants.setBaseConfigFolder(args[0]);
         }
-        WorkerNode.initialize(config);
-        WorkerNode.addListener("testchannel", new ClientTestChannel());
+        WorkerNode workerNode = WorkerNode.load();
+        workerNode.addListener("testchannel", new ClientTestChannel());
         int choice = -1;
         Scanner sc = new Scanner(System.in);
         do {
-            System.out.println("1. Send request");
-            choice = sc.nextInt();
-            switch (choice) {
-                case 1:
-                    WorkerNode.sendRequest("testchannel", "Send request");
-                    break;
-                case 2:
-                    break;
+            try {
+                System.out.println("1. Send request");
+                System.out.println("2. Print remote address");
+                choice = sc.nextInt();
+                switch (choice) {
+                    case 1:
+                        workerNode.sendRequest("testchannel", "Send request");
+                        break;
+                    case 2:
+                        SocketAddress remoteAddress = workerNode.getLocalAddress();
+                        System.out.println("Address: " + remoteAddress.toString());
+                        break;
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
         } while (choice != 0);
     }

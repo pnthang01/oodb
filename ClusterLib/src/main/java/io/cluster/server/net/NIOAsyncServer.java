@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 
 /**
  *
@@ -69,7 +70,7 @@ public class NIOAsyncServer extends Thread {
         listeners.add(listener);
     }
 
-    public void sendMessageToSingleBean(String channel, String id, String message) {
+    public void sendMessageToSingleBean(String channel, String id, String message) throws InterruptedException, ExecutionException {
         for (Entry<String, AsyncSocketBean> entry : beanList.entrySet()) {
             if (entry.getKey().equals(id)) {
                 entry.getValue().sendResponse(channel, message);
@@ -78,9 +79,17 @@ public class NIOAsyncServer extends Thread {
         }
     }
 
-    public void sendMessageToAllBean(String channel, String message) {
+    public void sendMessageToAllBean(String channel, String message) throws InterruptedException, ExecutionException {
         for (AsyncSocketBean bean : beanList.values()) {
-            bean.sendResponse(channel, message);
+            try {
+                bean.sendResponse(channel, message);
+            } catch (Exception ex) {
+                try {
+                    ex.printStackTrace();
+                    System.err.println("Cannot send message to client: " + bean.soc.getRemoteAddress().toString());
+                } catch (Exception e) {
+                }
+            }
         }
     }
 
@@ -154,10 +163,18 @@ public class NIOAsyncServer extends Thread {
          * @param response
          */
         public void sendResponse(String channel, String response) {
-            byte[] finalBytes = new byte[32 + SIZE];
-            System.arraycopy(channel.getBytes(), 0, finalBytes, 0, channel.length());
-            System.arraycopy(response.getBytes(), 0, finalBytes, 32, response.length());
-            soc.write(ByteBuffer.wrap(finalBytes));
+            if (null == channel || null == response) {
+                throw new IllegalArgumentException("Either channel or response message is null.");
+            }
+            try {
+                byte[] finalBytes = new byte[32 + SIZE];
+                System.arraycopy(channel.getBytes(), 0, finalBytes, 0, channel.length());
+                System.arraycopy(response.getBytes(), 0, finalBytes, 32, response.length());
+                soc.write(ByteBuffer.wrap(finalBytes)).get();
+            } catch (InterruptedException | ExecutionException ex) {
+                System.err.println("Error when send response message to client, error: " + ex.getMessage());
+                ex.printStackTrace();
+            }
         }
 
         private void readRequest() {

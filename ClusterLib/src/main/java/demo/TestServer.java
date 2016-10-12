@@ -9,7 +9,7 @@ import io.cluster.shared.core.IMessageListener;
 import io.cluster.shared.bean.INetBean;
 import io.cluster.shared.bean.RequestNetBean;
 import io.cluster.server.node.MasterNode;
-import io.cluster.server.node.NodeManager;
+import io.cluster.util.Constants;
 import java.util.Scanner;
 
 /**
@@ -19,32 +19,36 @@ import java.util.Scanner;
 public class TestServer {
 
     public static void main(String[] args) {
-        String config = null;
         if (args.length > 0) {
-            config = args[0];
-        } 
-        MasterNode.initialize(config);
-        NodeManager.addListener("testchannel", new TestChannel());
+            Constants.setBaseConfigFolder(args[0]);
+        }
+        
+        MasterNode masterNode = MasterNode.load();
+        masterNode.addListenner("testchannel", new TestChannel());
         //
         int choice = 0;
         Scanner sc = new Scanner(System.in);
         do {
-            System.out.println("1. Send message");
-            System.out.println("2. Send message to single client");
-            System.out.println("3. Monitor clients");
-            choice = sc.nextInt();
-            if (choice == 1) {
-                NodeManager.sendMessageToAllClient("testchannel", "Send message");
-            }
-            if (choice == 2) {
-                System.out.println(NodeManager.checkAllNodeStatus());
-                int node = -1;
-                node = sc.nextInt() - 1;
-                String id = NodeManager.getNodeByIndex(node).getId();
-                NodeManager.sendMessageToSingleClient(id, "testchannel", "Send message");
-            }
-            if (choice == 3) {
-                System.out.println(NodeManager.checkAllNodeStatus());
+            try {
+                System.out.println("1. Send message");
+                System.out.println("2. Send message to single client");
+                System.out.println("3. Monitor clients");
+                choice = sc.nextInt();
+                if (choice == 1) {
+                    masterNode.sendMessageToAllClient("testchannel", "Send message");
+                }
+                if (choice == 2) {
+                    System.out.println(masterNode.checkAllNodeStatus());
+                    int node = -1;
+                    node = sc.nextInt() - 1;
+                    String id = masterNode.getNodeByIndex(node).getId();
+                    masterNode.sendMessageToSingleClient(id, "testchannel", "Send message");
+                }
+                if (choice == 3) {
+                    System.out.println(masterNode.checkAllNodeStatus());
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
         } while (choice != 0);
     }
