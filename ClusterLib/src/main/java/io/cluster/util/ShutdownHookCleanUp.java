@@ -16,19 +16,27 @@ import java.util.concurrent.TimeUnit;
  */
 public class ShutdownHookCleanUp {
 
-    private static final Deque<ExecutorCleanUpUnit> cleanUpExecutor = new ArrayDeque<>();
+    private final Deque<ExecutorCleanUpUnit> cleanUpExecutor = new ArrayDeque<>();
+    private static ShutdownHookCleanUp _instance;
 
-    public static void addExecutor(ExecutorCleanUpUnit executor) {
+    public void addExecutor(ExecutorCleanUpUnit executor) {
         cleanUpExecutor.add(executor);
     }
 
-    public static void initialize() {
+    private ShutdownHookCleanUp() {
         Runtime runtime = Runtime.getRuntime();
         runtime.addShutdownHook(new ShutdownHook());
         System.out.println("Initialize shutdown hook cleanup");
     }
 
-    public static class ShutdownHook extends Thread {
+    public synchronized static ShutdownHookCleanUp load() {
+        if (null == _instance) {
+            _instance = new ShutdownHookCleanUp();
+        }
+        return _instance;
+    }
+
+    public class ShutdownHook extends Thread {
 
         @Override
         public void run() {

@@ -24,7 +24,7 @@ public class TestClient {
         if (args.length > 0) {
             Constants.setBaseConfigFolder(args[0]);
         }
-        WorkerNode workerNode = WorkerNode.load();
+        WorkerNode workerNode = WorkerNode.initialize(true);
         workerNode.addListener("testchannel", new ClientTestChannel());
         int choice = -1;
         Scanner sc = new Scanner(System.in);

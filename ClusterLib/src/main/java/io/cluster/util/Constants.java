@@ -16,7 +16,8 @@ public class Constants {
         public static final String ALL_CHANNEL = "_all";
         public static final String SYSTEM_CHANNEL = "_system";
         public static final String NODE_CHANNEL = "_node";
-        public static final String NONE_GROUP = "none";
+        
+        public static final String NONE_GROUP = "none_group";
     }
 
     public static class Action {
