@@ -19,6 +19,10 @@ public class StringUtil {
 
     private static final Type MAP_JSON_TYPE = new TypeToken<Map<String, String>>() {}.getType();
 
+    public static Map<String, String> fromJsonToMap(String json) {
+        return gson.fromJson(json, MAP_JSON_TYPE);
+    }
+
     private static final Gson gson = new Gson();
 
     public static <T> T fromJson(String json, Class<T> clazz) {
@@ -27,10 +31,6 @@ public class StringUtil {
 
     public static <T> T fromJson(String json, Type type) {
         return gson.fromJson(json, type);
-    }
-
-    public static Map<String, String> fromJsonToMap(String json) {
-        return gson.fromJson(json, MAP_JSON_TYPE);
     }
 
     public static String toJson(Object o) {
@@ -69,8 +69,9 @@ public class StringUtil {
 
     /**
      * Safe Parse Int
+     *
      * @param s
-     * @return 
+     * @return
      */
     public static int safeParseInt(Object s) {
         return safeParseInt(s.toString(), 0);
@@ -90,8 +91,9 @@ public class StringUtil {
 
     /**
      * Safe Parse Long
+     *
      * @param s
-     * @return 
+     * @return
      */
     public static long safeParseLong(Object s) {
         return safeParseInt(s.toString(), 0);
@@ -111,8 +113,9 @@ public class StringUtil {
 
     /**
      * Safe Parse Double
+     *
      * @param s
-     * @return 
+     * @return
      */
     public static double safeParseDouble(Object s) {
         return safeParseInt(s.toString(), 0);

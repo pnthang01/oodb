@@ -1,0 +1,5 @@
+[2016-10-28 17:31:44.565] [DEBUG] main -> App : Debug Message Logged !!!
+[2016-10-28 17:31:44.567] [INFO ] main -> App : Info Message Logged !!!
+[2016-10-28 17:31:44.567] [ERROR] main -> App : Error Message Logged !!!
+java.lang.NullPointerException: NullError
+	at demo.log4j.App.main(App.java:14) [classes/:?]

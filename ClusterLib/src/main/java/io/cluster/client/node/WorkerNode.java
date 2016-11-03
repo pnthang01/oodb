@@ -5,7 +5,6 @@
  */
 package io.cluster.client.node;
 
-import io.cluster.client.listener.JobClientMessageListener;
 import io.cluster.shared.core.IMessageListener;
 import io.cluster.client.net.NIOAsyncClient;
 import io.cluster.util.Constants.Channel;
@@ -79,12 +78,12 @@ public class WorkerNode {
     }
 
     /**
-     * Use when retrieve a WorkerNode instance.
+     * Use when retrieve a WorkerNode instance. Will connect to the master node.
      *
      * @return
      */
-    public synchronized static WorkerNode load() {
-        if(null == _instance) {
+    public synchronized static WorkerNode initialize() {
+        if (null == _instance) {
             _instance = new WorkerNode(false);
         }
         return _instance;
@@ -100,6 +99,10 @@ public class WorkerNode {
 
     public void signalStop() {
 
+    }
+
+    public void setShouldConnect(boolean shouldConnect) {
+        this.shouldConnect = shouldConnect;
     }
 
     public boolean isShouldConnect() {

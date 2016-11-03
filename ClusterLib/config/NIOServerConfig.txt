@@ -19,3 +19,6 @@ SIZE = 4096
 # PATH
 # PATH = ./io/cluster/net
 #-----------------------------------------------
+HTTP.HOST = 127.0.0.1
+HTTP.PORT = 9369
+HTTP.SECRETKEY = abc

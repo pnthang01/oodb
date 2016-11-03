@@ -5,10 +5,13 @@
  */
 package io.cluster.server.node;
 
+import io.cluster.http.HttpLogServer;
+import io.cluster.http.core.ControllerManager;
 import io.cluster.server.bean.NodeBean;
+import io.cluster.server.listener.ServerCoordinatorMessageListener;
 import io.cluster.shared.core.IMessageListener;
-import io.cluster.server.listener.JobServerMessageListener;
-import io.cluster.server.listener.NodeServerMonitoringListener;
+import io.cluster.server.listener.ServerNodeMonitoringListener;
+import io.cluster.server.listener.ServerTaskMessageListener;
 import io.cluster.server.net.NIOAsyncServer;
 import io.cluster.util.Constants.Channel;
 import io.cluster.util.StringUtil;
@@ -20,12 +23,16 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  *
  * @author thangpham
  */
 public class MasterNode {
+
+    private static final Logger LOGGER = LogManager.getLogger(MasterNode.class.getName());
 
     private final ConcurrentMap<String, ConcurrentMap<String, NodeBean>> groupedNodeMap;
     private final ConcurrentMap<String, NodeBean> nodeMap;
@@ -35,6 +42,8 @@ public class MasterNode {
     private static Lock instanceLock = new ReentrantLock(true);
 
     private MasterNode() {
+        System.setProperty("logFileName", "master-node");
+        //
         server = new NIOAsyncServer();
         server.start();
         this.groupedNodeMap = new ConcurrentHashMap<>();
@@ -46,10 +55,14 @@ public class MasterNode {
      */
     public void _init() {
         //****** Have to read config to read channel 
-        NodeServerMonitoringListener listener = new NodeServerMonitoringListener();
+        ServerNodeMonitoringListener listener = new ServerNodeMonitoringListener();
         server.addListener(Channel.SYSTEM_CHANNEL, listener);
-        JobServerMessageListener nodeListner = new JobServerMessageListener();
+        ServerTaskMessageListener nodeListner = new ServerTaskMessageListener();
         server.addListener(Channel.NODE_CHANNEL, nodeListner);
+        ServerCoordinatorMessageListener coorListener = new ServerCoordinatorMessageListener();
+        server.addListener(Channel.COORDINATOR_CHANNEL, coorListener);
+        //
+        new HttpLogServer().start();
         //
         Timer timer = new Timer();
         TimerTask checkNodeAliveTask = new TimerTask() {
@@ -107,6 +120,23 @@ public class MasterNode {
     }
 
     /**
+     * Send message to all nodes in a group
+     *
+     * @param channel
+     * @param group
+     * @param message
+     */
+    public void sendMessageToGroupClient(String channel, String group, String message) throws InterruptedException, ExecutionException {
+        ConcurrentMap<String, NodeBean> groupNode = groupedNodeMap.get(group);
+        if (null == groupNode || groupNode.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, NodeBean> entry : groupNode.entrySet()) {
+            sendMessageToSingleClient(channel, entry.getKey(), message);
+        }
+    }
+
+    /**
      * Check all node statues
      *
      * @return
@@ -132,7 +162,7 @@ public class MasterNode {
     public NodeBean addNode(String group, String host, int port) {
         String name = "Test name" + port;//TODO: auto generate node name
         NodeBean addedNode = addNode(group, name, host, port);
-        System.out.println(String.format("Node %s:%d is added succesfully", host, port));
+        LOGGER.info(String.format("Node %s:%d is added succesfully", host, port));
         return addedNode;
     }
 
@@ -166,23 +196,6 @@ public class MasterNode {
             nodeMap.remove(hashId);
         }
         _instance.nodeMap.remove(hashId);
-    }
-
-    /**
-     * Send message to all nodes in a group
-     *
-     * @param channel
-     * @param group
-     * @param message
-     */
-    public void sendMessageToGroupClient(String channel, String group, String message) throws InterruptedException, ExecutionException {
-        ConcurrentMap<String, NodeBean> groupNode = groupedNodeMap.get(group);
-        if (null == groupNode || groupNode.isEmpty()) {
-            return;
-        }
-        for (Map.Entry<String, NodeBean> entry : groupNode.entrySet()) {
-            sendMessageToSingleClient(channel, entry.getKey(), message);
-        }
     }
 
     /**
