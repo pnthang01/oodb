@@ -13,12 +13,16 @@ public class Constants {
 
     public static class Channel {
 
-        public static final String ALL_CHANNEL = "_all";
-        public static final String SYSTEM_CHANNEL = "_system";
-        public static final String NODE_CHANNEL = "_node";
-        public static final String COORDINATOR_CHANNEL = "_coor";
-        
-        public static final String NONE_GROUP = "none_group";
+        public static final String ALL_CHANNEL = "c_all";
+        public static final String SYSTEM_CHANNEL = "c_system";
+        public static final String NODE_CHANNEL = "c_node";
+        public static final String COORDINATOR_CHANNEL = "c_coor";
+    }
+
+    public static class Group {
+
+        public static final String NONE_GROUP = "g_none";
+        public static final String COORDINATOR_GROUP = "g_coor";
     }
 
     public static class Action {

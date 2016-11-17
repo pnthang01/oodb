@@ -5,6 +5,7 @@
  */
 package io.cluster.server.bean;
 
+import io.cluster.util.MethodUtil;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -59,7 +60,7 @@ public class NodeBean {
 
     @Override
     public String toString() {
-        return "NodeBean{" + "group=" + group + ", id=" + id + ", name=" + name + ", host=" + host + ", port=" + port + ", startedTime=" + startedTime + ", lastPingTime=" + lastPingTime + ", status=" + status + '}';
+        return MethodUtil.toJson(this);
     }
 
     public ConcurrentMap<String, String> getState() {

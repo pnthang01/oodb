@@ -16,7 +16,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author thangpham
  * @param <T>
  */
-public abstract class IMessageListener <T extends INetBean> {
+public abstract class IMessageListener<T extends INetBean> {
 
     private final MessageInterceptor interceptor;
 

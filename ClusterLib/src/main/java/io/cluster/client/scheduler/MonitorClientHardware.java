@@ -8,7 +8,6 @@ package io.cluster.client.scheduler;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.sun.management.OperatingSystemMXBean;
 import io.cluster.client.node.WorkerNode;
-import io.cluster.shared.model.MessageModel;
 import io.cluster.util.Constants;
 import io.cluster.util.StringUtil;
 import java.lang.management.ManagementFactory;
@@ -80,15 +79,13 @@ public class MonitorClientHardware {
                     if (checkMem) {
                         outOfMemCondition.signalAll();
                     }
-                    Map<String, String> nodeInfo = new HashMap();
-                    nodeInfo.put("process_load", osMxBean.getProcessCpuLoad() + "");
-                    nodeInfo.put("load_avg", osMxBean.getSystemLoadAverage() + "");
-                    nodeInfo.put("max_mem", runtime.maxMemory() + "");
-                    nodeInfo.put("used_mem", (runtime.totalMemory() - runtime.freeMemory()) + "");
-                    MessageModel model = new MessageModel();
-                    model.setAction(Constants.Action.REPORT_ACTION);
-                    model.setValues(nodeInfo);
-                    workerNode.sendRequest(Constants.Channel.SYSTEM_CHANNEL, StringUtil.toJson(model));
+                    Map<String, String> message = new HashMap();
+                    message.put("process_load", osMxBean.getProcessCpuLoad() + "");
+                    message.put("load_avg", osMxBean.getSystemLoadAverage() + "");
+                    message.put("max_mem", runtime.maxMemory() + "");
+                    message.put("used_mem", (runtime.totalMemory() - runtime.freeMemory()) + "");
+                    message.put("action", Constants.Action.REPORT_ACTION);
+                    workerNode.sendRequest(Constants.Channel.SYSTEM_CHANNEL, StringUtil.toJson(message));
                 } catch (Exception ex) {
                     LOGGER.error("Error occured when monitor client hardware: ", ex);
                 } finally {

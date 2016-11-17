@@ -40,18 +40,13 @@ public class ClientTaskMessageListener extends IMessageListener<ResponseNetBean>
     }
 
     @Override
-    public String onMessage(ResponseNetBean bean) {
+    public String onMessage(ResponseNetBean response) {
         locker.lock();
         String result = null;
         try {
-            if (null == bean || !(bean instanceof ResponseNetBean) || StringUtil.isNullOrEmpty(bean.getMessage())) {
-                LOGGER.error("Client Request is empty or a null or wrong net bean, cannot process.");
-                result = null;
-            }
-            ResponseNetBean response = (ResponseNetBean) bean;
             String messageStr = response.getMessageAsString();
-            if (null == messageStr) {
-                LOGGER.error("Cannot not process request with null message.");
+            if (StringUtil.isNullOrEmpty(messageStr)) {
+                LOGGER.error("Client Request is empty or a null, cannot process.");
                 result = null;
             }
             Map<String, String> message = StringUtil.fromJsonToMap(messageStr);
@@ -89,7 +84,7 @@ public class ClientTaskMessageListener extends IMessageListener<ResponseNetBean>
         locker.lock();
         try {
             int i = 0;
-            while (!hasInstruction.get() || i < wait) {
+            while (!hasInstruction.get() && i < wait) {
                 instructionCondition.await(3, TimeUnit.SECONDS);
                 ++i;
             }

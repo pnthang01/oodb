@@ -6,13 +6,13 @@
 package io.cluster.server.node;
 
 import io.cluster.http.HttpLogServer;
-import io.cluster.http.core.ControllerManager;
 import io.cluster.server.bean.NodeBean;
-import io.cluster.server.listener.ServerCoordinatorMessageListener;
 import io.cluster.shared.core.IMessageListener;
-import io.cluster.server.listener.ServerNodeMonitoringListener;
+import io.cluster.server.listener.ServerHardwareMonitoringListener;
 import io.cluster.server.listener.ServerTaskMessageListener;
 import io.cluster.server.net.NIOAsyncServer;
+import io.cluster.shared.core.AbstractGroupManager;
+import io.cluster.util.Constants;
 import io.cluster.util.Constants.Channel;
 import io.cluster.util.StringUtil;
 import java.util.Map;
@@ -21,6 +21,8 @@ import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import org.apache.logging.log4j.LogManager;
@@ -35,11 +37,15 @@ public class MasterNode {
     private static final Logger LOGGER = LogManager.getLogger(MasterNode.class.getName());
 
     private final ConcurrentMap<String, ConcurrentMap<String, NodeBean>> groupedNodeMap;
+
+    private final ConcurrentMap<String, AbstractGroupManager> managers;
     private final ConcurrentMap<String, NodeBean> nodeMap;
 
     private final NIOAsyncServer server;
     private static MasterNode _instance = null;
-    private static Lock instanceLock = new ReentrantLock(true);
+
+    private Lock nodeLocker = new ReentrantLock(true);
+    private Condition newNodeCondition = nodeLocker.newCondition();
 
     private MasterNode() {
         System.setProperty("logFileName", "master-node");
@@ -48,6 +54,7 @@ public class MasterNode {
         server.start();
         this.groupedNodeMap = new ConcurrentHashMap<>();
         this.nodeMap = new ConcurrentHashMap();
+        this.managers = new ConcurrentHashMap<>();
     }
 
     /**
@@ -55,12 +62,12 @@ public class MasterNode {
      */
     public void _init() {
         //****** Have to read config to read channel 
-        ServerNodeMonitoringListener listener = new ServerNodeMonitoringListener();
+        ServerHardwareMonitoringListener listener = new ServerHardwareMonitoringListener();
         server.addListener(Channel.SYSTEM_CHANNEL, listener);
         ServerTaskMessageListener nodeListner = new ServerTaskMessageListener();
         server.addListener(Channel.NODE_CHANNEL, nodeListner);
-        ServerCoordinatorMessageListener coorListener = new ServerCoordinatorMessageListener();
-        server.addListener(Channel.COORDINATOR_CHANNEL, coorListener);
+        CoordinatorNodeManager coorManager = CoordinatorNodeManager.load();
+        managers.put(Constants.Group.COORDINATOR_GROUP, coorManager);
         //
         new HttpLogServer().start();
         //
@@ -90,12 +97,12 @@ public class MasterNode {
         return _instance;
     }
 
-    public void addListenner(String channel, IMessageListener listenner) {
-        _instance.server.addListener(channel, listenner);
+    public void addListener(String channel, IMessageListener listenner) {
+        server.addListener(channel, listenner);
     }
 
     /**
-     * Send message to all nodes
+     * Send message to all clients
      *
      * @param channel
      * @param message
@@ -103,11 +110,11 @@ public class MasterNode {
      * @throws java.util.concurrent.ExecutionException
      */
     public void sendMessageToAllClient(String channel, String message) throws InterruptedException, ExecutionException {
-        server.sendMessageToAllBean(channel, message);
+        server.sendMessageToAllClient(channel, message);
     }
 
     /**
-     * Send message to all nodes
+     * Send message to single client base on its id.
      *
      * @param id
      * @param channel
@@ -115,12 +122,22 @@ public class MasterNode {
      * @throws java.lang.InterruptedException
      * @throws java.util.concurrent.ExecutionException
      */
-    public void sendMessageToSingleClient(String id, String channel, String message) throws InterruptedException, ExecutionException {
-        server.sendMessageToSingleBean(id, channel, message);
+    public boolean sendMessageToSingleClient(String id, String channel, String message) throws InterruptedException, ExecutionException {
+        if (nodeMap.containsKey(id)) {
+            server.sendMessageToSingleClient(id, channel, message);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public boolean sendMessageToSingleClient(String host, int port, String channel, String message) throws InterruptedException, ExecutionException {
+        String hashId = StringUtil.getHashAddress(host, port);
+        return sendMessageToSingleClient(hashId, channel, message);
     }
 
     /**
-     * Send message to all nodes in a group
+     * Send message to all clients in a group
      *
      * @param channel
      * @param group
@@ -144,7 +161,7 @@ public class MasterNode {
     public String checkAllNodeStatus() {
         StringBuilder sb = new StringBuilder();
         int index = 1;
-        for (Map.Entry<String, NodeBean> nodeEntry : _instance.nodeMap.entrySet()) {
+        for (Map.Entry<String, NodeBean> nodeEntry : nodeMap.entrySet()) {
             sb.append("\n").append(index).append(".").append(nodeEntry.getValue().toString());
         }
         //
@@ -166,20 +183,58 @@ public class MasterNode {
         return addedNode;
     }
 
-    private NodeBean addNode(String group, String name, String host, int port) {
-        String hashId = StringUtil.getHashAddress(host, port);
-        NodeBean node = new NodeBean(hashId, name, host, port);
-        node.setGroup(group);
-        ConcurrentMap<String, NodeBean> groupMap = groupedNodeMap.get(group);
-        if (null == groupMap) {
-            groupMap = new ConcurrentHashMap();
-            ConcurrentMap<String, NodeBean> putIfAbsent = groupedNodeMap.putIfAbsent(group, groupMap);
-            groupMap = putIfAbsent == null ? groupMap : putIfAbsent;
+    private AtomicReference<NodeBean> newNode = new AtomicReference<>();
+
+    /**
+     * Add one node to cluster.
+     *
+     * @param group
+     * @param name
+     * @param host
+     * @param port
+     * @return
+     */
+    public NodeBean addNode(String group, String name, String host, int port) {
+        NodeBean node = null;
+        nodeLocker.lock();
+        try {
+            String hashId = StringUtil.getHashAddress(host, port);
+            node = new NodeBean(hashId, name, host, port);
+            node.setGroup(group);
+            ConcurrentMap<String, NodeBean> groupMap = groupedNodeMap.get(group);
+            if (null == groupMap) {
+                groupMap = new ConcurrentHashMap();
+                ConcurrentMap<String, NodeBean> putIfAbsent = groupedNodeMap.putIfAbsent(group, groupMap);
+                groupMap = putIfAbsent == null ? groupMap : putIfAbsent;
+            }
+            groupMap.putIfAbsent(hashId, node);
+            nodeMap.putIfAbsent(hashId, node);
+            //
+            newNode.set(node);
+            newNodeCondition.signalAll();
+        } catch (Exception ex) {
+            LOGGER.error("Could not add new node to cluster, error: ", ex);
+        } finally {
+            nodeLocker.unlock();
+            return node;
         }
-        groupMap.putIfAbsent(hashId, node);
-        nodeMap.putIfAbsent(hashId, node);
-        //
-        return node;
+    }
+
+    public NodeBean waitingForNewNode() {
+        NodeBean returnNode = null;
+        nodeLocker.lock();
+        try {
+            while (newNode.get() == null) {
+                newNodeCondition.await();
+            }
+            returnNode = newNode.get();
+            newNode.set(null);
+        } catch (Exception ex) {
+            LOGGER.error("Could not wait for new node to cluster, error: ", ex);
+        } finally {
+            nodeLocker.unlock();
+            return returnNode;
+        }
     }
 
     /**

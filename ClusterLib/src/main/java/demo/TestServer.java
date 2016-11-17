@@ -24,7 +24,7 @@ public class TestServer {
         }
         
         MasterNode masterNode = MasterNode.load();
-        masterNode.addListenner("testchannel", new TestChannel());
+//        masterNode.addListenner("testchannel", new TestChannel());
         //
         int choice = 0;
         Scanner sc = new Scanner(System.in);

@@ -13,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * ANTS HTTP Log server. based on
+ * HTTP Log server. based on
  * https://github.com/netty/netty/tree/master/example/src/main/java/io/netty/example/http/snoop
  */
 public class HttpLogServer extends Thread {

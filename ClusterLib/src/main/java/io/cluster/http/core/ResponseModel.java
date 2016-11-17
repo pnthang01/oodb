@@ -14,9 +14,8 @@ public class ResponseModel {
     private int code = -1;
     private String message;
     protected Object data;
-    
-    public static ResponseModel createInstance(int code, String message) {
-        return new ResponseModel(code, message, null);
+
+    public ResponseModel() {
     }
 
     public ResponseModel(int code, String message, Object data) {

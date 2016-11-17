@@ -21,6 +21,8 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  *
@@ -28,16 +30,18 @@ import java.util.concurrent.ExecutionException;
  */
 public class NIOAsyncServer extends Thread {
 
+    private static final Logger LOGGER = LogManager.getLogger(NIOAsyncServer.class.getName());
+    
     private AsynchronousServerSocketChannel asynSvr;
     private final ConcurrentMap<String, List<IMessageListener>> channelListeners;
-    private final ConcurrentMap<String, AsyncSocketBean> beanList;
+    private final ConcurrentMap<String, AsyncSocketClient> clientList;
     private int SIZE;
     private boolean isRunning = true;
 
     public NIOAsyncServer() {
-        System.out.println("The server is about to start...");
+        LOGGER.info("The server is about to start...");
         channelListeners = new ConcurrentHashMap<>();
-        beanList = new ConcurrentHashMap<>();
+        clientList = new ConcurrentHashMap<>();
         try {
             SIZE = Integer.parseInt(ServerConfigAutoLoader.getConfigByName("SIZE"));
             String host = ServerConfigAutoLoader.getConfigByName("HOST");
@@ -45,16 +49,16 @@ public class NIOAsyncServer extends Thread {
             asynSvr = AsynchronousServerSocketChannel.open();
             asynSvr.bind(new InetSocketAddress(host, port));
         } catch (IOException ex) {
-            ex.printStackTrace();
+            LOGGER.error("Error when init NIOAsyncServer, error: ", ex);
         }
-        System.out.println("The server started successfully.");
+        LOGGER.info("The server started successfully.");
     }
 
     public void shutdown() {
         try {
             isRunning = false;
             asynSvr.close();
-            System.out.println("Server is shutdown...");
+            LOGGER.info("Server is shutdown...");
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -70,19 +74,24 @@ public class NIOAsyncServer extends Thread {
         listeners.add(listener);
     }
 
-    public void sendMessageToSingleBean(String channel, String id, String message) throws InterruptedException, ExecutionException {
-        for (Entry<String, AsyncSocketBean> entry : beanList.entrySet()) {
+    public boolean sendMessageToSingleClient(String channel, String id, String message) throws InterruptedException, ExecutionException {
+        boolean sendSuccess = Boolean.FALSE;
+        for (Entry<String, AsyncSocketClient> entry : clientList.entrySet()) {
             if (entry.getKey().equals(id)) {
+                sendSuccess = Boolean.TRUE;
                 entry.getValue().sendResponse(channel, message);
                 break;
             }
         }
+        return sendSuccess;
     }
 
-    public void sendMessageToAllBean(String channel, String message) throws InterruptedException, ExecutionException {
-        for (AsyncSocketBean bean : beanList.values()) {
+    public int sendMessageToAllClient(String channel, String message) throws InterruptedException, ExecutionException {
+        int numSuccess = 0;
+        for (AsyncSocketClient bean : clientList.values()) {
             try {
                 bean.sendResponse(channel, message);
+                ++numSuccess;
             } catch (Exception ex) {
                 try {
                     ex.printStackTrace();
@@ -91,6 +100,7 @@ public class NIOAsyncServer extends Thread {
                 }
             }
         }
+        return numSuccess;
     }
 
     @Override
@@ -98,8 +108,8 @@ public class NIOAsyncServer extends Thread {
         try {
             while (isRunning) {
                 try {
-                    AsyncSocketBean bean = new AsyncSocketBean(asynSvr.accept().get(), channelListeners);
-                    beanList.put(bean.getClientId(), bean);
+                    AsyncSocketClient bean = new AsyncSocketClient(asynSvr.accept().get(), channelListeners);
+                    clientList.put(bean.getClientId(), bean);
                     bean.start();
                 } catch (Exception ex) {
                     System.err.println("Cannot accept new client, error " + ex.getMessage());
@@ -110,13 +120,13 @@ public class NIOAsyncServer extends Thread {
         }
     }
 
-    public class AsyncSocketBean extends Thread {
+    public class AsyncSocketClient extends Thread {
 
         private String clientId;
         private final AsynchronousSocketChannel soc;
         private final ConcurrentMap<String, List<IMessageListener>> channelListeners;
 
-        public AsyncSocketBean(AsynchronousSocketChannel soc, ConcurrentMap<String, List<IMessageListener>> channelListeners) throws IOException {
+        public AsyncSocketClient(AsynchronousSocketChannel soc, ConcurrentMap<String, List<IMessageListener>> channelListeners) throws IOException {
             this.soc = soc;
             this.channelListeners = channelListeners;
             String[] parseAddress = StringUtil.parseAddress(soc.getRemoteAddress());
